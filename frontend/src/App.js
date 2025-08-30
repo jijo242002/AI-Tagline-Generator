@@ -1,168 +1,152 @@
-import React, { useState } from "react";
-import {
-  Container,
-  TextField,
-  Button,
-  Typography,
-  Box,
-  Card,
-  CardContent,
-  CircularProgress,
-  MenuItem,
-} from "@mui/material";
-import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
+import React, { useState, useEffect } from "react";
 
 function App() {
-  const [product, setProduct] = useState("");
+  const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [audience, setAudience] = useState("");
-  const [tone, setTone] = useState("professional");
-  const [numTaglines, setNumTaglines] = useState(3);
+  const [tone, setTone] = useState("Casual");
+  const [count, setCount] = useState(3);
+  const [taglines, setTaglines] = useState([]);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
 
-  const HF_API_URL = "https://api-inference.huggingface.co/models/<YOUR_MODEL_NAME>";
-  const HF_API_KEY = "<YOUR_HF_API_KEY>"; // Replace with your Hugging Face API key
+  const API_URL = "http://127.0.0.1:5000";
 
-  const handleSubmit = async (e) => {
+  // Fetch history on page load
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
+  const fetchHistory = async () => {
+    try {
+      const response = await fetch(`${API_URL}/history`);
+      const data = await response.json();
+      setHistory(data.history || []);
+    } catch (err) {
+      console.error("Error fetching history:", err);
+      setError("Failed to fetch history.");
+    }
+  };
+
+  const handleGenerate = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
-    setResult(null);
-
-    // Build prompt
-    const prompt = `Generate ${numTaglines} ${tone} tagline(s) for the following product:
-Product Name: ${product}
-Description: ${description}
-Target Audience: ${audience}`;
+    setError("");
 
     try {
-      const response = await fetch(HF_API_URL, {
+      const response = await fetch(`${API_URL}/tagline`, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${HF_API_KEY}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ inputs: prompt }),
+        body: JSON.stringify({
+          name,
+          description,
+          audience,
+          tone,
+          count,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error(`HF API error: ${response.statusText}`);
+        throw new Error("Failed to generate taglines");
       }
 
       const data = await response.json();
-
-      // HF can return array of generated texts or a single object
-      let taglines = [];
-      if (Array.isArray(data)) {
-        taglines = data.map((item) => item.generated_text?.trim()).filter(Boolean);
-      } else if (data.generated_text) {
-        taglines = [data.generated_text.trim()];
-      } else {
-        throw new Error("No taglines returned from HF API");
-      }
-
-      setResult({ taglines });
+      setTaglines(data.taglines || []);
+      fetchHistory(); // refresh history after new taglines
     } catch (err) {
-      setError(err.message || "❌ Failed to generate taglines");
+      console.error("Error:", err);
+      setError("❌ Failed to connect to backend.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Container maxWidth="sm" sx={{ mt: 6 }}>
-      <Typography variant="h4" align="center" gutterBottom fontWeight="bold">
-        🚀 AI Tagline Generator
-      </Typography>
-      <Typography variant="subtitle1" align="center" color="text.secondary" gutterBottom>
-        Generate catchy taglines for your product instantly
-      </Typography>
+    <div style={{ maxWidth: "800px", margin: "20px auto", fontFamily: "Arial, sans-serif" }}>
+      <h1>✨ AI Tagline Generator</h1>
 
-      <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3 }}>
-        <TextField
-          fullWidth
-          label="Product Name"
-          value={product}
-          onChange={(e) => setProduct(e.target.value)}
-          margin="normal"
+      {/* Form */}
+      <form onSubmit={handleGenerate} style={{ marginBottom: "20px" }}>
+        <input
+          type="text"
+          placeholder="Product Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
           required
+          style={{ width: "100%", margin: "5px 0", padding: "8px" }}
         />
-        <TextField
-          fullWidth
-          label="Product Description"
+
+        <textarea
+          placeholder="Product Description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          margin="normal"
           required
+          style={{ width: "100%", margin: "5px 0", padding: "8px" }}
         />
-        <TextField
-          fullWidth
-          label="Target Audience"
+
+        <input
+          type="text"
+          placeholder="Target Audience"
           value={audience}
           onChange={(e) => setAudience(e.target.value)}
-          margin="normal"
           required
+          style={{ width: "100%", margin: "5px 0", padding: "8px" }}
         />
-        <TextField
-          select
-          fullWidth
-          label="Tone"
+
+        <select
           value={tone}
           onChange={(e) => setTone(e.target.value)}
-          margin="normal"
+          style={{ width: "100%", margin: "5px 0", padding: "8px" }}
         >
-          <MenuItem value="funny">Funny</MenuItem>
-          <MenuItem value="professional">Professional</MenuItem>
-          <MenuItem value="luxury">Luxury</MenuItem>
-          <MenuItem value="casual">Casual</MenuItem>
-        </TextField>
-        <TextField
-          fullWidth
+          <option value="Funny">Funny</option>
+          <option value="Professional">Professional</option>
+          <option value="Luxury">Luxury</option>
+          <option value="Casual">Casual</option>
+        </select>
+
+        <input
           type="number"
-          label="Number of Taglines"
-          value={numTaglines}
-          onChange={(e) => setNumTaglines(e.target.value)}
-          margin="normal"
-          inputProps={{ min: 1, max: 10 }}
+          min="1"
+          max="10"
+          value={count}
+          onChange={(e) => setCount(e.target.value)}
+          style={{ width: "100%", margin: "5px 0", padding: "8px" }}
         />
 
-        <Button
-          type="submit"
-          variant="contained"
-          fullWidth
-          sx={{ mt: 2, py: 1.5, fontSize: "16px", borderRadius: "12px" }}
-          startIcon={<RocketLaunchIcon />}
-          disabled={loading}
-        >
-          {loading ? <CircularProgress size={24} color="inherit" /> : "Generate Taglines"}
-        </Button>
-      </Box>
+        <button type="submit" disabled={loading} style={{ padding: "10px 20px", marginTop: "10px" }}>
+          {loading ? "Generating..." : "Generate Taglines"}
+        </button>
+      </form>
 
-      {error && (
-        <Typography color="error" align="center" sx={{ mt: 3 }}>
-          {error}
-        </Typography>
-      )}
+      {/* Error */}
+      {error && <p style={{ color: "red" }}>{error}</p>}
 
-      {result && (
-        <Card sx={{ mt: 4, p: 2, borderRadius: "16px", boxShadow: 4 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              ✨ Generated Taglines
-            </Typography>
-            {result.taglines.map((line, i) => (
-              <Typography key={i} variant="body1" sx={{ mb: 1 }}>
-                • {line}
-              </Typography>
-            ))}
-          </CardContent>
-        </Card>
+      {/* Generated Taglines */}
+      <h2>🎯 Generated Taglines</h2>
+      <ul>
+        {taglines.map((tagline, idx) => (
+          <li key={idx}>{tagline}</li>
+        ))}
+      </ul>
+
+      {/* History */}
+      <h2>📜 History</h2>
+      {history.length === 0 ? (
+        <p>No taglines generated yet.</p>
+      ) : (
+        <ul>
+          {history.map((item) => (
+            <li key={item.id}>
+              <strong>{item.product_name}:</strong> {item.tagline} <em>({item.tone})</em>
+            </li>
+          ))}
+        </ul>
       )}
-    </Container>
+    </div>
   );
 }
 
 export default App;
-
